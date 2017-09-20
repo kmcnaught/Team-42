@@ -5,7 +5,7 @@ import cv2
 cap = cv2.VideoCapture(0)
 
 # Thresholds for channel filtering 
-smallTh = 240
+smallTh = 250
 bigTh   = 255
 
 
@@ -35,20 +35,42 @@ while(True):
 
     ### Morphological filtering --> find shapes
     # Create shapes
-    Gelement = np.ones((20,20))
-    Relement = np.ones((8,8))
-    
+    Gelement1 = np.ones((5,5))
+    Relement1 = np.ones((5,5))
+    Gelement2 = np.ones((7,7))
+    Relement2 = np.ones((7,7))
+    Gelement3 = np.ones((11,11))
+    Relement3 = np.ones((11,11))
     # filtering
-    trueGreen_Opened=cv2.morphologyEx(trueGreen,cv2.MORPH_OPEN,Gelement)
-    trueRed_Opened=cv2.morphologyEx(trueRed,cv2.MORPH_OPEN,Relement)
+    trueGreen_Closed=cv2.morphologyEx(trueGreen,cv2.MORPH_CLOSE,Gelement1)
+    trueRed_Closed=cv2.morphologyEx(trueRed,cv2.MORPH_CLOSE,Relement1)
+    trueGreen_Opened=cv2.morphologyEx(trueGreen_Closed,cv2.MORPH_OPEN,Gelement2)
+    trueRed_Opened=cv2.morphologyEx(trueRed_Closed,cv2.MORPH_OPEN,Relement2)
     
+    
+    ### Find the center of our shapes
+    # Makes sure only our shape is displayed
+    trueGreen_Opened[trueGreen_Opened < 254.5] = 0
+
+    # Get the position of biggest shape
+    trueGreenDistance=cv2.distanceTransform(trueGreen_Opened,cv2.DIST_L2,0)
+    # print(np.unravel_index(trueGreenDistance.argmax(),trueGreenDistance.shape))
+    centre = np.unravel_index(trueGreenDistance.argmax(),trueGreenDistance.shape)
+    radius = np.max(trueGreenDistance)
+    
+    cv2.circle(trueGreenDistance,(centre[1], centre[0]),radius, (255,255,255), 2)
+
+    
+
     # Display the results
-#    cv2.imshow('R',trueRed)
-#    cv2.imshow('B',trueBlue)
-#    cv2.imshow('G',trueGreen)
+    cv2.imshow('R',trueRed)
+#   cv2.imshow('B',trueBlue)
+    cv2.imshow('G',trueGreen)
+
 
     cv2.imshow('Gopened',trueGreen_Opened)
     cv2.imshow('Ropened',trueRed_Opened)
+    cv2.imshow('GdT',trueGreenDistance)
 
     
     if cv2.waitKey(1) & 0xFF == ord('q'):
