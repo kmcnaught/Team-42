@@ -77,14 +77,17 @@
 #### IMPORT ####
 import numpy as np
 import cv2
+from vectors import Point, Vector
+from fn.uniform import reduce
+
 
 #### SET UP ####
 # Creat camera 
 cap = cv2.VideoCapture(0)
 
 # Thresholds for channel filtering 
-smallTh     = 230 	
-blueSmallTh = 150 	# Different small Th for blue channel (different saturation?)
+smallTh     = 220 	
+blueSmallTh = 220 	# Different small Th for blue channel (different saturation?)
 bigTh       = 255
 
 # Number of baloons and kills (might be useful for tracking and counting number of kills)
@@ -93,6 +96,12 @@ BlueBaloons      = 5
 WhiteKillCounter = 0
 BlueKillCounter  = 0
 TgtArea 		 = 800 # Min area of a baloon 
+RobArea      = 5 # Min area of robots lables
+
+# Flags
+WhiteCheck, TgtCheck = 0,0 # Equal 0 if we don't have a tgt
+TgtCentre = [0,0]
+## Functions
 
 def RobStop():
 	a = 1
@@ -103,7 +112,7 @@ def RobStop():
 	# Output: ok from robot
 
 def RandomWalk():
-	a = 1
+	a = 1 
 	# Inputs: 
 
 	# Random walk
@@ -112,8 +121,7 @@ def RandomWalk():
 
 	# Output: ok from robot
 
-def TgtIdentif():
-	a = 1
+def TgtIdentif(gcentre, rcentre, WhiteList, Positions):
 	# Inputs: Robot location, Rob orientation, Tgts locations
 
 	# Sort tgts by distance
@@ -122,6 +130,30 @@ def TgtIdentif():
 	# Find the tgt that scores better for both categories: that's what we aim for
 
 	# Output: Ok for tgt identified, location of selected tgt, relative angle
+    
+#    gpoint = Point(gcentre[1], gcentre[0], 0)
+#    rpoint = Point(rcentre[1], rcentre[0], 0)
+#    robVec = Vector.from_points(gpoint, rpoint)
+    
+    robVec= [gcentre[1]-rcentre[1],gcentre[0]-rcentre[0]]
+
+    WhiteDists = np.zeros((len(WhiteList),1))
+    
+    for i in np.arange(0, len(WhiteList)):
+        # whitePoint = Point(WhiteList[1], WhiteList[0,i],0)
+        # whiteVec = Vector.from_points(whitePoint, gpoint)
+
+        whiteVec = [WhiteList[i,1]-gcentre[1],WhiteList[i,0]-gcentre[0]]
+        WhiteDists[i] =  whiteVec[0]**2 + whiteVec[1]**2
+        
+        WhiteDists = WhiteDists.astype(np.uint8)
+        MinDist = np.argmin(WhiteDists)
+
+        TgtCentre = WhiteList[MinDist,:]
+        TgtCentre = TgtCentre.astype(np.uint8)
+        TgtCheck = 1
+
+    return WhiteDists, TgtCentre, TgtCheck
 
 def RobAligntoTgt(): 
 	a = 1
@@ -166,12 +198,12 @@ def ProxtoObst():
 	# not sure if useful, find close obstacles
 
 
-def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteKillCounter, BlueKillCounter): 
+def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteKillCounter, BlueKillCounter, TgtCentre, TgtCheck): 
 
-	# Inputs: camera frames, thresholds
-	# Outputs: robot, tgts, obsts locations + checks
+    # Inputs: camera frames, thresholds
+    # Outputs: robot, tgts, obsts locations + checks
 
-	## Setting up ##
+    ## Setting up ##
     # Create empty array to display results
     Positions = np.zeros((np.shape(frame)))
     
@@ -240,32 +272,29 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
     gradius = np.max(trueGreenDistance)
     rcentre = np.unravel_index(trueRedDistance.argmax(),trueRedDistance.shape)
     rradius = np.max(trueRedDistance)
-    
-    cv2.circle(Positions,(gcentre[1],gcentre[0]),gradius, (0,255,0), 2)
-    cv2.circle(Positions,(rcentre[1],rcentre[0]),rradius, (0,0,255), 2)
 
-    # !! Use gcentre and rcentre to draw a line or triangle between the two centres to simulate robot
-    # Get centre and orientation of Robot
-
-    if trueGreenDistance < 1:
-    	GreenCheck = 0
-    	return GreenCheck
+    if int(rradius) > RobArea and int(gradius) > RobArea:
+        GreenCheck, RedCheck = 1,1
+        cv2.circle(Positions,(gcentre[1],gcentre[0]),gradius, (0,255,0), 2)
+        cv2.circle(Positions,(rcentre[1],rcentre[0]),rradius, (0,0,255), 2)
+        cv2.line(Positions,(gcentre[1],gcentre[0]), (rcentre[1],rcentre[0]),(0,255,0), 2 )
+        
+    elif int(rradius) < RobArea and int(gradius) > RobArea:
+        GreenCheck, RedCheck = 1,0
+        cv2.circle(Positions,(gcentre[1],gcentre[0]),gradius, (0,255,0), 2)
+    elif int(rradius) > RobArea and int(gradius) < RobArea:
+        GreenCheck, RedCheck = 0,1
+        cv2.circle(Positions,(rcentre[1],rcentre[0]),rradius, (0,255,0), 2)
     else:
-    	GreenCheck = 1
-
-    if trueRedDistance < 1:
-    	RedCheck = 0
-    	return RedCheck
-    else:
-    	RedCheck = 1
+        GreenCheck, RedCheck = 0,0
 
     # For Blue channel: find contours and centres - and draw
     cnts = cv2.findContours(trueBlue_Opened.copy(), cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_SIMPLE)[-2]
     if len(cnts) > 0:
          nCnts = np.shape(cnts)[0]
-         cnt = cnts[0]
-         #cv2.drawContours(Positions,cnts, -1, (255,0,0), 3 )
+         # cnt = cnts[0]
+         # cv2.drawContours(Positions,cnts, -1, (255,0,0), 3 )
          for i in np.arange(0, len(cnts)):
              c = cnts[i]
              area = cv2.contourArea(c)
@@ -283,7 +312,6 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
     	# If we can't find any blue baloon and there should be some, finding them should be priority - stop robot
     	if BlueKillCounter < BlueBaloons: #We haven't yet killed all blue baloons
     		BlueCheck = 0
-    		return BlueCheck
     	else:
     		a = 1
     		# We killed all of them 
@@ -298,22 +326,27 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
 
          # !! If kills = 0, check if number of blue shapes matches known number of tgts
 
-         cnt = cnts[0]
-         #cv2.drawContours(Positions,cnts, -1, (255,255,255), 3 )
+         # cnt = cnts[0]
+         # cv2.drawContours(Positions,cnts, -1, (255,255,255), 3 )
+         WhiteCheck = 1 # We've found white targets
+         WhiteList = np.zeros((len(cnts),2)) # Initialise array to list coords
          for i in np.arange(0, len(cnts)):
              c = cnts[i]
              # Might need to change size filtering here, similiar to blue channel 
              M = cv2.moments(c)
              center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+             WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
              cv2.circle(Positions,center,25, (255,255,255), 2)
-
-             # !! Need to save centres coords to some data structure to pass to functions
-         WhiteCheck = 1
+             
+         if TgtCheck == 1:
+             print('ok')
+             cv2.circle(Positions, (TgtCentre[1], TgtCentre[0]), 3,(255,255,255), 2)
+         
     else: 
     	# No white shapes identified: either recognition not working or all targets disappeared
     	# Use WhiteBaloons and WhiteKillCounter to know if there should be any
 		# If we can't find any white baloon and there should be some, finding them should be priority - stop robot
-		WhiteCheck = 0
+        WhiteCheck, TgtCheck, WhiteList = 0, 0, 0
 
     ### DISPLAY RESULTS ###
     cv2.imshow('frame',frame)
@@ -333,10 +366,11 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
     ### Exit if 'q' is pressed  ###
     if cv2.waitKey(1) & 0xFF == ord('q'):
         ### When everything done, release the capture ###
-		cap.release()
-		cv2.destroyAllWindows()
+        cap.release()
+        cv2.destroyAllWindows()
 
-	# If everything went well we can return relevant variables
+    # If everything went well we can return relevant variables
+    return GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions
 
 
 
@@ -349,32 +383,40 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
 
 while(True):
 	# Capture frame-by-frame
+    print(WhiteCheck, TgtCheck)
     ret, frame = cap.read()
 
-    Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteKillCounter, BlueKillCounter)
+    GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions = Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteKillCounter, BlueKillCounter, TgtCentre, TgtCheck)
 
-    # if GreenCheck == 0 | RedCheck == 0:
-    # 	# We can't find one or both of the  markes on the robot
-    # 	# We should stop the robot or random walk until we can find it again
-    # 	robStop()
-    # 	RandomWalk()  # For some time or until the robot is found again  
-   	# else:
-   	# 	# We know where the robot is: we can keep going with controlling the robot's behaviour
-
-   	# 	if BlueCheck == 1: # or WhiteCheck == 1, depending on which one is tgt
-   	# 		# We know where the robot is and we know where at least one tgt baloon is 
-   	# 		TgtIdentif() # Find target, returns TgtCheck = 1 if found 
-
-   	# 		if TgtCheck == 1: # We have a tgt
-   	# 			# Align to target
-   	# 			RobAligntoTgt()	# Returns AlignCheck when alignment correct
-
-   	# 			if AlignCheck == 1: # We are aligned to tgt
-   	# 				Navigation() # Will move the robot until it's close to tgt and facing it 
-   	# 							 # When in position it triggers the Kill function 
-
-   	# 	else: # we don't have an identified blue baloon
-   	# 		RobStop()
+    if GreenCheck == 0 or RedCheck == 0:
+     	# We can't find one or both of the  markes on the robot
+     	# We should stop the robot or random walk until we can find it again
+         
+         
+#     robStop()
+#     RandomWalk()  # For some time or until the robot is found again  
+         a = 1
+    else:
+        if WhiteCheck == 1:
+            WhiteDists, TgtCentre, TgtCheck = TgtIdentif(gcentre, rcentre, WhiteList, Positions)
+            print(TgtCheck)
+        
+        
+#   	 	# We know where the robot is: we can keep going with controlling the robot's behaviour
+#   	 	if BlueCheck == 1: # or WhiteCheck == 1, depending on which one is tgt
+#   	 		# We know where the robot is and we know where at least one tgt baloon is 
+#   	 		TgtIdentif() # Find target, returns TgtCheck = 1 if found 
+#
+#   	 		if TgtCheck == 1: # We have a tgt
+#   	 			# Align to target
+#   	 			RobAligntoTgt()	# Returns AlignCheck when alignment correct
+#
+#   	 			if AlignCheck == 1: # We are aligned to tgt
+#   	 				Navigation() # Will move the robot until it's close to tgt and facing it 
+#   	 							 # When in position it triggers the Kill function 
+#
+#   	 	else: # we don't have an identified blue baloon
+#   	 		RobStop()
 
 
 # Fin
