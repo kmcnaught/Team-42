@@ -80,16 +80,13 @@ import cv2
 from vectors import Point, Vector
 from fn.uniform import reduce
 import math
+import cmath
+import serial
 
 
 #### SET UP ####
 # Creat camera 
 cap = cv2.VideoCapture(0)
-
-# Thresholds for channel filtering 
-smallTh     = 220 	
-blueSmallTh = 220 	# Different small Th for blue channel (different saturation?)
-bigTh       = 255
 
 # Number of baloons and kills (might be useful for tracking and counting number of kills)
 WhiteBaloons     = 5
@@ -100,9 +97,11 @@ TgtArea 		 = 800 # Min area of a baloon
 RobArea      = 5 # Min area of robots lables
 
 # Flags
-WhiteCheck, TgtCheck = 0,0 # Equal 0 if we don't have a tgt
+GreenCheck, RedCheck, WhiteCheck, TgtCheck, AlignCheck = 0, 0, 0, 0, 0 # Equal 0 if we don't have a tgt
 TgtCentre = [0,0]
 TgtAngle = 0; 
+
+
 ## Functions
 
 def RobStop():
@@ -127,39 +126,40 @@ def TgtIdentif(gcentre, rcentre, WhiteList, Positions):
 
     ## Find closest white target
     robVec= [gcentre[1]-rcentre[1],gcentre[0]-rcentre[0]]
-    
     WhiteDists = np.zeros((len(WhiteList),1))
     for i in np.arange(0, len(WhiteList)):
         whiteVec = [WhiteList[i,1]-gcentre[1],WhiteList[i,0]-gcentre[0]]
         WhiteDists[i] =  whiteVec[0]**2 + whiteVec[1]**2
-        
-        WhiteDists = WhiteDists.astype(np.uint16)
-        MinDist = np.argmin(WhiteDists)
-        
-        TgtCentre = WhiteList[MinDist,:]
-        TgtCentre = TgtCentre.astype(np.uint16)
+    WhiteDists = WhiteDists.astype(np.int32)
+    MinDist = np.argmin(WhiteDists)
+    TgtCentre = WhiteList[MinDist,:]
+    TgtCentre = TgtCentre.astype(np.int16)
         
     
     ## Find angle to target
     tgtVec = [TgtCentre[1]-gcentre[1], TgtCentre[0]-gcentre[0]]
     
-    TgtAngle = angle_between(robVec, tgtVec)  # Angle in radian
-    TgtAngle = TgtAngle * 180 / math.pi       # Angle in degrees
-    TgtAngle = ( TgtAngle +180 ) % 360 - 180  # Remap to values between -179 and +180
+    TgtAngle=cmath.phase(complex(tgtVec[1],tgtVec[0]))-cmath.phase(complex(robVec[1],robVec[0]))
+
     
+    #TgtAngle = angle_between(robVec, tgtVec)  # Angle in radian
+    TgtAngle = TgtAngle * 180 / math.pi       # Angle in degrees
+    # TgtAngle = (( TgtAngle +180 ) % 360) - 180  # Remap to values between -179 and +180
     TgtCheck = 1
 
     return WhiteDists, TgtCentre, TgtCheck, TgtAngle
 
-def RobAligntoTgt(): 
-	a = 1
-	# Inputs: Rob location, Rob orientation, tgt location
+def RobAligntoTgt(gcentre,TgtCentre, TgtAngle ): 
+    AngleTh = 15 
 
-	# Compute relative angle
-	# Check if below threshold
-	# Rotate robot correctly until angle below threshold	
-
-	# Output: Ok for align correct
+    if math.fabs(int(round(TgtAngle))) < AngleTh:
+        # We are aligned 
+        AlignCheck = 1
+    else: 
+        # Move robot HERE
+        AlignCheck = 0
+        
+    return AlignCheck
 
 def Navigation():
 	a = 1
@@ -199,54 +199,55 @@ def unit_vector(vector):
 def angle_between(v1, v2):
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
-    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+    return math.acos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
     
 
 
-def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteKillCounter, BlueKillCounter, TgtCentre, TgtCheck, TgtAngle): 
+def Vision(frame, WhiteBaloons, BlueBaloons, WhiteKillCounter, BlueKillCounter, TgtCentre, TgtCheck, TgtAngle, AlignCheck): 
 
     # Inputs: camera frames, thresholds
     # Outputs: robot, tgts, obsts locations + checks
+
+    WhiteTh  = 50
+    WhiteTh2 = 15
+    BlackTh = 150
+    lGTh    = 35
+    hGTh    = 75
+    lRTh    = 10
+    hRTh    = 35
+    lBTh    = 80
+    hBTh    = 135
+
 
     ## Setting up ##
     # Create empty array to display results
     Positions = np.zeros((np.shape(frame)))
     
-    ## Filtering Channels ##
-    # Get Individual channels and threshold them 
-    blue  = frame[:,:,0]
-    green = frame[:,:,1]
-    red   = frame[:,:,2]
+    cv2.imshow('frame', frame)
+
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     
-    retB, blueTh   = cv2.threshold(blue, smallTh, blueSmallTh, cv2.ADAPTIVE_THRESH_MEAN_C)
-    retB, blueThff = cv2.threshold(blue, smallTh, bigTh, cv2.ADAPTIVE_THRESH_MEAN_C) # If we want to subtract blue to other ch, we need differently filtered version
-    retG, greenTh  = cv2.threshold(green, smallTh, bigTh, cv2.ADAPTIVE_THRESH_MEAN_C)
-    retR, redTh    = cv2.threshold(red, smallTh, bigTh, cv2.ADAPTIVE_THRESH_MEAN_C)
+    greenTh = np.greater(np.greater(frame[:,:,0],lGTh)*1 + np.less(frame[:,:,0],hGTh)*1 + np.greater(frame[:,:,1],WhiteTh)*1 + np.greater(frame[:,:,2],BlackTh)*1,3) 
+    greenTh = greenTh*255
+    trueGreen = greenTh.astype(np.uint8)
     
-    # Do a first morpholical filtering to eliminate noise across channels 
-    Element1  = np.ones((15,15))
+    redTh = np.greater(np.greater(frame[:,:,0],lRTh)*1 + np.less(frame[:,:,0],hRTh)*1 + np.greater(frame[:,:,1],WhiteTh)*1 + np.greater(frame[:,:,2],BlackTh)*1,3) 
+    redTh = redTh*255
+    trueRed = redTh.astype(np.uint8)
+
+    blueTh = np.greater(np.greater(frame[:,:,0],lBTh)*1 + np.less(frame[:,:,0],hBTh)*1 + np.greater(frame[:,:,1],WhiteTh)*1 + np.greater(frame[:,:,2],BlackTh)*1,3) 
+    blueTh = blueTh*255
+    trueBlue = blueTh.astype(np.uint8)
+    
+    whiteTh = np.greater(np.less(frame[:,:,1],WhiteTh2)*1 + np.greater(frame[:,:,2],BlackTh)*1,1) 
+    whiteTh = whiteTh*255
+    trueWhite = whiteTh.astype(np.uint8)
+
+#    # Do a first morpholical filtering to eliminate noise across channels 
     Element4  = np.ones((25,25))
     Gelement2 = np.ones((7,7))
-    Relement1 = np.ones((15,15))
     Relement2 = np.ones((7,7))
     Relement3 = np.ones((45,45))
-
-    greenDilated = cv2.morphologyEx(greenTh,cv2.MORPH_DILATE,Element1)
-    redDilated   = cv2.morphologyEx(redTh,cv2.MORPH_DILATE,Element1)
-    blueDilated  = cv2.morphologyEx(blueThff,cv2.MORPH_DILATE,Element1)
-    
-    # Subtract filtered channels to get true colors
-    trueGreen  = greenTh - blueDilated - redDilated
-    trueBlue   = blueThff - greenDilated - redDilated
-    trueRed    = redTh - blueDilated     
-    trueWhite  = np.round(greenTh/3 + redTh/3 + blueThff/3)
-
-    # Threshold channels correclty to eliminate odd values
-    trueGreen[trueGreen < 0]    = 0
-    trueBlue[trueBlue < 0]      = 0
-    trueRed[trueRed < 0]        = 0
-    trueWhite[trueWhite < 250]  = 0
-    trueWhite[trueWhite >= 250] = 255
 
     # Morphological filtering - closing
     trueGreen_Closed    = cv2.morphologyEx(trueGreen,cv2.MORPH_CLOSE,Gelement2)
@@ -277,7 +278,6 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
     gradius = np.max(trueGreenDistance)
     rcentre = np.unravel_index(trueRedDistance.argmax(),trueRedDistance.shape)
     rradius = np.max(trueRedDistance)
-
     if int(rradius) > RobArea and int(gradius) > RobArea:
         GreenCheck, RedCheck = 1,1
         cv2.circle(Positions,(gcentre[1],gcentre[0]),gradius, (0,255,0), 2)
@@ -343,6 +343,11 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
              cv2.circle(Positions, (TgtCentre[1], TgtCentre[0]), 4,(100,100,255), 2)
              cv2.line(Positions, (gcentre[1],gcentre[0]), (TgtCentre[1], TgtCentre[0]), (255, 255, 255), 1)
              cv2.putText(Positions, str(round(TgtAngle)), (gcentre[1]+3,gcentre[0]+3),  cv2.FONT_HERSHEY_PLAIN, 2, (255,255,255), 2 )
+             
+             if AlignCheck == 1 :
+                 cv2. putText(Positions, 'Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 2, (0,255,0), 2 )
+             else:
+                 cv2. putText(Positions, 'Not Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 2, (0,0,255), 2 )
          
     else: 
     	# No white shapes identified: either recognition not working or all targets disappeared
@@ -351,6 +356,7 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
         WhiteCheck, TgtCheck, WhiteList = 0, 0, 0
 
     ### DISPLAY RESULTS ###
+    frame = cv2.cvtColor(frame, cv2.COLOR_HSV2BGR)
     cv2.imshow('frame',frame)
     cv2.imshow('Position',Positions )
 
@@ -386,8 +392,9 @@ def Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteK
 while(True):
 	# Capture frame-by-frame
     ret, frame = cap.read()
+    
 
-    GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions, WhiteCheck = Vision(frame, smallTh, blueSmallTh, bigTh, WhiteBaloons, BlueBaloons, WhiteKillCounter, BlueKillCounter, TgtCentre, TgtCheck, TgtAngle)
+    GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions, WhiteCheck = Vision(frame, WhiteBaloons, BlueBaloons, WhiteKillCounter, BlueKillCounter, TgtCentre, TgtCheck, TgtAngle, AlignCheck)
 
     if GreenCheck == 0 or RedCheck == 0:
      	# We can't find one or both of the  markes on the robot
@@ -400,6 +407,12 @@ while(True):
     else:
         if WhiteCheck == 1:
             WhiteDists, TgtCentre, TgtCheck, TgtAngle = TgtIdentif(gcentre, rcentre, WhiteList, Positions)
+            
+            if TgtCheck == 1:
+                AlignCheck = RobAligntoTgt(gcentre,TgtCentre, TgtAngle )
+                
+                if AlignCheck == 1:
+                    a = 1
         
         
 #   	 	# We know where the robot is: we can keep going with controlling the robot's behaviour
