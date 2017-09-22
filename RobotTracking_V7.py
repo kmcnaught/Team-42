@@ -21,10 +21,11 @@ TgtDistThres     = 100 # Min dist from tgt before entering killing mode
 RobArea          = 5 # Min area of robots lables
 
 # Flags
-GreenCheck, RedCheck, WhiteCheck, TgtCheck, AlignCheck = 0, 0, 0, 0, 0 # Equal 0 if we don't have a tgt
+GreenCheck, RedCheck, WhiteCheck, TgtCheck, AlignCheck, BlueCheck = 0, 0, 0, 0, 0, 0 # Equal 0 if we don't have a tgt
 command = 0
 TgtCentre = [0,0]
 TgtAngle = 0; 
+TgtDist  = 4;
 
 ## Functions
 def TgtIdentif(gcentre, rcentre, WhiteList, Positions):
@@ -90,7 +91,7 @@ def angle_between(v1, v2):
     return math.acos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))    
 
 
-def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, command): 
+def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, command, TgtDist): 
 
     ## Setting up ##
     # Create empty array to display results
@@ -188,16 +189,33 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
         cv2.CHAIN_APPROX_SIMPLE)[-2]
     if len(cnts) > 0:
          nCnts = np.shape(cnts)[0]
-         # cnt = cnts[0]
-         # cv2.drawContours(Positions,cnts, -1, (255,0,0), 3 )
+         WhiteList = np.zeros((len(cnts),2)) # Initialise array to list coords
+         BlueCheck = 1
          for i in np.arange(0, len(cnts)):
              c = cnts[i]
-             area = cv2.contourArea(c)
-             if area > TgtArea: # Filetirng out small contours 
-                 M = cv2.moments(c)
-                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                 cv2.circle(Positions,center,25, (255,0,0), 2)
-         BlueCheck = 1
+             M = cv2.moments(c)
+             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+             WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
+             cv2.circle(Positions,center,25, (255,0,0), 2)
+         # If we have selected a target draw it on the map
+         if TgtCheck == 1 and GreenCheck == 1:
+             cv2.circle(Positions, (TgtCentre[1], TgtCentre[0]), 4,(100,100,255), 2)
+             cv2.circle(Positions, (gcentre[1],gcentre[0]), TgtDistThres, (0, 150, 0), 1)
+             cv2.line(Positions, (gcentre[1],gcentre[0]), (TgtCentre[1], TgtCentre[0]), (255, 255, 255), 1)
+             cv2.putText(Positions, str(round(TgtAngle)), (20, 45),  cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255), 2 )
+             cv2. putText(Positions,'Tgt Dist' + str(math.sqrt(TgtDist)), (20, 65),  cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 2)
+             # Display if we are aligned to target
+             if AlignCheck == 1 :
+                 cv2. putText(Positions, 'Aligned', (20, 85),  cv2.FONT_HERSHEY_PLAIN, 1, (0,255,0), 2 )
+             else:
+                 cv2. putText(Positions, 'Not Aligned', (20, 85),  cv2.FONT_HERSHEY_PLAIN, 1, (0,0,255), 2 )
+         
+    else: 
+        # Write Check as 0s so that we can tell robot to random walk
+        BlueCheck, TgtCheck, WhiteList = 0, 0, 0
+        
+             
+         
 
 
     # For White channel: find contours and centres - and draw
@@ -208,32 +226,32 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
     if len(cnts) > 0:
          nCnts = np.shape(cnts)[0]
          WhiteCheck = 1 # We've found white targets
-         WhiteList = np.zeros((len(cnts),2)) # Initialise array to list coords
+#         WhiteList = np.zeros((len(cnts),2)) # Initialise array to list coords
          
          for i in np.arange(0, len(cnts)): # Get coords of shapes + draw them
              c = cnts[i]
              M = cv2.moments(c)
              center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-             WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
+             # WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
              cv2.circle(Positions,center,25, (255,255,255), 2)
              
-         # If we have selected a target draw it on the map
-         if TgtCheck == 1 and GreenCheck == 1:
-             cv2.circle(Positions, (TgtCentre[1], TgtCentre[0]), 4,(100,100,255), 2)
-             cv2.circle(Positions, (gcentre[1],gcentre[0]), TgtDistThres, (0, 150, 0), 1)
-             cv2.line(Positions, (gcentre[1],gcentre[0]), (TgtCentre[1], TgtCentre[0]), (255, 255, 255), 1)
-             cv2.putText(Positions, str(round(TgtAngle)), (gcentre[1]+3,gcentre[0]+3),  cv2.FONT_HERSHEY_PLAIN, 2, (255,255,255), 2 )
-             
-             # Display if we are aligned to target
-             if AlignCheck == 1 :
-                 cv2. putText(Positions, 'Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, (0,255,0), 2 )
-             else:
-                 cv2. putText(Positions, 'Not Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, (0,0,255), 2 )
-         
-    else: 
-        # Write Check as 0s so that we can tell robot to random walk
-        WhiteCheck, TgtCheck, WhiteList = 0, 0, 0
-        
+#         # If we have selected a target draw it on the map
+#         if TgtCheck == 1 and GreenCheck == 1:
+#             cv2.circle(Positions, (TgtCentre[1], TgtCentre[0]), 4,(100,100,255), 2)
+#             cv2.circle(Positions, (gcentre[1],gcentre[0]), TgtDistThres, (0, 150, 0), 1)
+#             cv2.line(Positions, (gcentre[1],gcentre[0]), (TgtCentre[1], TgtCentre[0]), (255, 255, 255), 1)
+#             cv2.putText(Positions, str(round(TgtAngle)), (gcentre[1]+3,gcentre[0]+3),  cv2.FONT_HERSHEY_PLAIN, 2, (255,255,255), 2 )
+#             
+#             # Display if we are aligned to target
+#             if AlignCheck == 1 :
+#                 cv2. putText(Positions, 'Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, (0,255,0), 2 )
+#             else:
+#                 cv2. putText(Positions, 'Not Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, (0,0,255), 2 )
+#         
+#    else: 
+#        # Write Check as 0s so that we can tell robot to random walk
+#        WhiteCheck, TgtCheck, WhiteList = 0, 0, 0
+#        
     # Display what command we are giving the robot
     if command == 0:
         Cmdstr = 'Go - Kill'
@@ -260,16 +278,16 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
         Cmdstr = 'Confused???'
         CmdCol = [255,255, 255]
         
-    cv2. putText(Positions, Cmdstr, (20, 45),  cv2.FONT_HERSHEY_PLAIN, 1, CmdCol, 2)
+    cv2. putText(Positions,  Cmdstr, (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, CmdCol, 2)
 
     ### DISPLAY RESULTS ###
     frame = cv2.cvtColor(frame, cv2.COLOR_HSV2BGR)
     cv2.imshow('frame',frame)
     cv2.imshow('Position',Positions )
-    cv2.imshow('trueGreen',trueGreen_Opened)
-    cv2.imshow('trueRed',trueRed_Opened)
-    cv2.imshow('trueBlue',trueBlue_Opened)
-    cv2.imshow('trueWhite',trueWhite_Opened )
+#    cv2.imshow('trueGreen',trueGreen_Opened)
+#    cv2.imshow('trueRed',trueRed_Opened)
+#    cv2.imshow('trueBlue',trueBlue_Opened)
+#    cv2.imshow('trueWhite',trueWhite_Opened )
 
     ### Exit if 'q' is pressed  ###
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -277,7 +295,7 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
         cv2.destroyAllWindows()
 
     # In the end we can return relevant variables
-    return GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions, WhiteCheck
+    return GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions, WhiteCheck, BlueCheck
 
 
 
@@ -291,7 +309,7 @@ while(True):
     ret, frame = cap.read()
     
     # Call Vision function
-    GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions, WhiteCheck = Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, command )
+    GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions, WhiteCheck, BlueCheck = Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, command, TgtDist )
     
     # Control animal behaviour
     if GreenCheck == 0 or RedCheck == 0:
@@ -299,7 +317,7 @@ while(True):
         command = 5 # Ramdom walk if we dont have robot
         print('Random Walk')
     else: # We got the robot in sight
-        if WhiteCheck == 1:
+        if  BlueCheck == 1:    #WhiteCheck == 1:
             # Wer have robot and white shapes: select target
             WhiteDists, TgtCentre, TgtCheck, TgtAngle, TgtDist = TgtIdentif(gcentre, rcentre, WhiteList, Positions)
             if TgtCheck == 1:
@@ -324,7 +342,7 @@ while(True):
     counter = 0 # Count how many time it loops before getting a reply
     while not responded:
         counter = counter + 1
-        if counter==5: # Need to re-run all other functions
+        if counter==100: # Need to re-run all other functions
             responded=True
 
         serin = ser.read() # Read serial
