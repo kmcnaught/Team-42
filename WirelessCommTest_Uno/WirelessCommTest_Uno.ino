@@ -21,7 +21,7 @@ void setup() {
   radio.begin();
 
   // Set the Power Level low
-  radio.setPALevel(RF24_PA_LOW);
+  radio.setPALevel(RF24_PA_HIGH);
   
   // Set radio rate and channel
   radio.setDataRate(RF24_250KBPS); 

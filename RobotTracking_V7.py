@@ -16,7 +16,7 @@ cap = cv2.VideoCapture(0)
 ser = serial.Serial('COM6', 9600, timeout=0.1)
 
 # Thresholds for behaviour control
-TgtArea          = 800 # Min area of a baloon 
+TgtArea          = 1200 # Min area of a baloon 
 TgtDistThres     = 100 # Min dist from tgt before entering killing mode
 RobArea          = 5 # Min area of robots lables
 
@@ -62,7 +62,7 @@ def RobAligntoTgt(gcentre,TgtCentre, TgtAngle, TgtDist):  # !!! Align function s
         # We are aligned 
         ## Adding here a check for distance from target: if we are safely away we shouldn't be in killing mode
         print('Tgt Dist', TgtDist, type(TgtDist))
-        if TgtDist < TgtDistThres:
+        if math.sqrt(TgtDist) < TgtDistThres:
             print('Go Kill')
             command = 0
         else:
@@ -91,7 +91,7 @@ def angle_between(v1, v2):
     return math.acos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))    
 
 
-def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, command, TgtDist): 
+def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, command, TgtDist,TgtArea): 
 
     ## Setting up ##
     # Create empty array to display results
@@ -194,9 +194,12 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
          for i in np.arange(0, len(cnts)):
              c = cnts[i]
              M = cv2.moments(c)
-             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-             WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
-             cv2.circle(Positions,center,25, (255,0,0), 2)
+             area = cv2.contourArea(c)
+             print(area)
+             if area > TgtArea:
+                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                 WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
+                 cv2.circle(Positions,center,int(math.sqrt(int(area))), (255,0,0), 2)
          # If we have selected a target draw it on the map
          if TgtCheck == 1 and GreenCheck == 1:
              cv2.circle(Positions, (TgtCentre[1], TgtCentre[0]), 4,(100,100,255), 2)
@@ -231,9 +234,11 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
          for i in np.arange(0, len(cnts)): # Get coords of shapes + draw them
              c = cnts[i]
              M = cv2.moments(c)
-             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-             # WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
-             cv2.circle(Positions,center,25, (255,255,255), 2)
+             area = cv2.contourArea(c)
+             if area > TgtArea and area < 4000:
+                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                 # WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
+                 cv2.circle(Positions,center,int(math.sqrt(int(area))), (255,255,255), 2)
              
 #         # If we have selected a target draw it on the map
 #         if TgtCheck == 1 and GreenCheck == 1:
@@ -248,9 +253,10 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
 #             else:
 #                 cv2. putText(Positions, 'Not Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, (0,0,255), 2 )
 #         
-#    else: 
+    else: 
 #        # Write Check as 0s so that we can tell robot to random walk
-#        WhiteCheck, TgtCheck, WhiteList = 0, 0, 0
+        WhiteCheck = 0
+        #, TgtCheck, WhiteList = 0, 0, 0
 #        
     # Display what command we are giving the robot
     if command == 0:
@@ -309,7 +315,7 @@ while(True):
     ret, frame = cap.read()
     
     # Call Vision function
-    GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions, WhiteCheck, BlueCheck = Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, command, TgtDist )
+    GreenCheck, RedCheck, gcentre, rcentre, WhiteList, Positions, WhiteCheck, BlueCheck = Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, command, TgtDist, TgtArea )
     
     # Control animal behaviour
     if GreenCheck == 0 or RedCheck == 0:
@@ -342,7 +348,7 @@ while(True):
     counter = 0 # Count how many time it loops before getting a reply
     while not responded:
         counter = counter + 1
-        if counter==100: # Need to re-run all other functions
+        if counter==5: # Need to re-run all other functions
             responded=True
 
         serin = ser.read() # Read serial
