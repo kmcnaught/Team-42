@@ -27,7 +27,7 @@ void setup() {
   radio.setDataRate(RF24_250KBPS); 
 
   // Set the channel (Frequency): 108 = 2.508 GHz (above WiFi)
-  radio.setChannel(80);
+  radio.setChannel(108);
 
   // Open a writing and reading pipe on each radio, with opposite addresses
   if(radioNumber){

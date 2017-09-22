@@ -2,9 +2,10 @@
 import serial
 
 ser = serial.Serial('COM6', 9600)
+connected=False
+while not connected:
+    serin=ser.read()
+    connected = True
 
-
-print(1)
-ser.write(bytes(1))
-print(ser.read())
+ser.write( bytes([1]))
 print(1)
