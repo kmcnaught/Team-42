@@ -150,13 +150,6 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
     trueWhite_To_Hatted = cv2.morphologyEx(trueWhite_Opened,cv2.MORPH_TOPHAT,Relement3)
     trueWhite_Opened    = cv2.morphologyEx(trueWhite_To_Hatted,cv2.MORPH_OPEN,Element4)
 
-    ## Finding Centres of shapes ##
-    # Makes sure only our shape is displayed
-#    trueGreen_Opened[trueGreen_Opened < 254.5]  = 0
-#    trueRed_Opened[trueRed_Opened < 254.5]      = 0
-#    trueBlue_Opened[trueBlue_Opened < 254.5]    = 0
-#    trueWhite_Opened[trueWhite_Opened < 254.5]  = 0
-
 	 # For Green and Red ch: get the position of biggest shape  (Only one shape per ch) - and draw
     trueGreenDistance = cv2.distanceTransform(trueGreen_Opened,cv2.DIST_L2,0)
     trueRedDistance   = cv2.distanceTransform(trueRed_Opened,cv2.DIST_L2,0)
@@ -239,20 +232,6 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
                  center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
                  # WhiteList[i,0], WhiteList[i,1] = center[1], center[0] # Add to list
                  cv2.circle(Positions,center,int(math.sqrt(int(area))), (255,255,255), 2)
-             
-#         # If we have selected a target draw it on the map
-#         if TgtCheck == 1 and GreenCheck == 1:
-#             cv2.circle(Positions, (TgtCentre[1], TgtCentre[0]), 4,(100,100,255), 2)
-#             cv2.circle(Positions, (gcentre[1],gcentre[0]), TgtDistThres, (0, 150, 0), 1)
-#             cv2.line(Positions, (gcentre[1],gcentre[0]), (TgtCentre[1], TgtCentre[0]), (255, 255, 255), 1)
-#             cv2.putText(Positions, str(round(TgtAngle)), (gcentre[1]+3,gcentre[0]+3),  cv2.FONT_HERSHEY_PLAIN, 2, (255,255,255), 2 )
-#             
-#             # Display if we are aligned to target
-#             if AlignCheck == 1 :
-#                 cv2. putText(Positions, 'Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, (0,255,0), 2 )
-#             else:
-#                 cv2. putText(Positions, 'Not Aligned', (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, (0,0,255), 2 )
-#         
     else: 
 #        # Write Check as 0s so that we can tell robot to random walk
         WhiteCheck = 0
