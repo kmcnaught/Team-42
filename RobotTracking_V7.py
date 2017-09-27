@@ -109,9 +109,9 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
     lBTh    = 80
     hBTh    = 100
 
-    ## HSV filtering 
-    # Convert to HSV
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    ## RGB filtering 
+    # Convert to RGB
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
     # Threshold for each color
     greenTh = np.greater(np.greater(frame[:,:,0],lGTh)*1 + np.less(frame[:,:,0],hGTh)*1 + np.greater(frame[:,:,1],WhiteTh)*1 + np.greater(frame[:,:,2],BlackTh)*1,3) 
