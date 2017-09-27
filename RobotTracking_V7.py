@@ -261,28 +261,28 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
     # Display what command we are giving the robot
     if command == 0:
         Cmdstr = 'Go - Kill'
-        CmdCol = [100,100, 255]
+        CmdCol = [100, 0, 255]
     elif command == 1:
         Cmdstr = 'STOP'
         CmdCol = [0,0, 255]
     elif command == 2:
         Cmdstr = 'Go - Safe'
-        CmdCol = [100,255, 100]
+        CmdCol = [100, 100, 100]
     elif command == 3:
         Cmdstr = 'Turn Right'
-        CmdCol = [255,255, 255]
+        CmdCol = [0, 0, 255]
     elif command == 4:
         Cmdstr = 'Turn Left'
-        CmdCol = [255,255, 255]
+        CmdCol = [255,0, 255]
     elif command == 5:
         Cmdstr = 'Random Walk'
-        CmdCol = [255,255, 255]
+        CmdCol = [255,100, 255]
     elif command == 6:
         Cmdstr = 'Go back'
-        CmdCol = [255,255, 255]
+        CmdCol = [255,255, 200]
     else:
         Cmdstr = 'Confused???'
-        CmdCol = [255,255, 255]
+        CmdCol = [255,100, 255]
         
     cv2. putText(Positions,  Cmdstr, (20, 20),  cv2.FONT_HERSHEY_PLAIN, 1, CmdCol, 2)
 
