@@ -64,6 +64,7 @@ def RobAligntoTgt(gcentre,TgtCentre, TgtAngle, TgtDist):  # !!! Align function s
         print('Tgt Dist', TgtDist, type(TgtDist))
         if math.sqrt(TgtDist) < TgtDistThres:
             print('Go Kill')
+            kill_balloon();
             command = 0
         else:
             command = 2
