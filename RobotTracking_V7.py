@@ -99,15 +99,15 @@ def Vision(frame, TgtCentre, TgtCheck, TgtAngle, AlignCheck, TgtDistThres, comma
     cv2.imshow('frame', frame)
     
     # Thresholds for  HSV filtering 
-    WhiteTh  = 60
+    WhiteTh  = 90
     WhiteTh2 = 15
     BlackTh = 150
     lGTh    = 35
     hGTh    = 75
     lRTh    = 170
-    hRTh    = 5
+    hRTh    = 15
     lBTh    = 80
-    hBTh    = 135
+    hBTh    = 100
 
     ## HSV filtering 
     # Convert to HSV
