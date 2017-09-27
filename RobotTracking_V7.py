@@ -82,6 +82,13 @@ def RobAligntoTgt(gcentre,TgtCentre, TgtAngle, TgtDist):  # !!! Align function s
         AlignCheck = 0
     return AlignCheck, command
 
+def kill_balloon(): 
+    print('Killing')
+    if (robot.missileLoaded):
+        launchMissile()
+    else:
+        print('Cannot attack, no missile loaded')
+
 def unit_vector(vector):
     return vector / np.linalg.norm(vector)
 
